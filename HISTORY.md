@@ -12,9 +12,9 @@ I tried to give credit whenever possible. If I have missed anyone, kindly add it
 - Fix: ARDUINO_VERSION can cope with the longer 1.6.10 version string (issue #444) (https://github.com/sej7278)
 - Tweak: Documentation for Windows updated to include installation of PySerial (https://github.com/sovcik) 
 
-### 1.5.1 (Debian version: 1.5-3) (2016-02-22)
+TODO - add this when ready
+- New: Add automatic library detection when compiling a sketch. (http://github.com/ladislas)
 
-- New: Add show_submenu target (https://github.com/drewhutchison)
 - New: Add AVR Dragon to list of ISP's without a port (https://github.com/mtnocean)
 - New: Add more board examples to Blink demo (https://github.com/sej7278)
 - New: Add option to split avrdude MCU from avr-gcc MCU (Issue #357) (https://github.com/hhgarnes)
