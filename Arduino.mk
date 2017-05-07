@@ -19,7 +19,7 @@
 #
 # Original Arduino adaptation by mellis, eighthave, oli.keller
 #
-# Current version: 1.5.1
+# Current version: 1.5.2
 #
 # Refer to HISTORY.md file for complete history of changes
 #
@@ -568,7 +568,7 @@ endif
 
 ifndef PARSE_BOARD
     # result = $(call READ_BOARD_TXT, 'boardname', 'parameter')
-    PARSE_BOARD = $(shell grep -Ev '^\#' $(BOARDS_TXT) | grep -E "^[ \t]*$(1).$(2)=" | cut -d = -f 2)
+    PARSE_BOARD = $(shell grep -Ev '^\#' $(BOARDS_TXT) | grep -E "^[ \t]*$(1).$(2)=" | cut -d = -f 2 | cut -d : -f 2)
 endif
 
 # If NO_CORE is set, then we don't have to parse boards.txt file
@@ -579,7 +579,7 @@ ifeq ($(strip $(NO_CORE)),)
     # 'robot', but can also hold 'tiny', for example, if using
     # https://code.google.com/p/arduino-tiny alternate core.
     ifndef CORE
-        CORE = $(shell echo $(call PARSE_BOARD,$(BOARD_TAG),build.core) | cut -d : -f 2)
+        CORE = $(call PARSE_BOARD,$(BOARD_TAG),build.core)
         $(call show_config_variable,CORE,[COMPUTED],(from build.core))
     else
         $(call show_config_variable,CORE,[USER])
@@ -1048,7 +1048,7 @@ CC_VERNUM = $(shell $(CC) -dumpversion | sed 's/\.//g')
 
 # moved from above so we can find version-dependant ar
 ifndef AR_NAME
-    ifeq ($(shell expr $(CC_VERNUM) '>' 480), 1)
+    ifeq ($(shell expr $(CC_VERNUM) '>' 490), 1)
         AR_NAME      = avr-gcc-ar
     else
         AR_NAME      = avr-ar
@@ -1056,7 +1056,7 @@ ifndef AR_NAME
 endif
 
 ifndef CFLAGS_STD
-    ifeq ($(shell expr $(CC_VERNUM) '>' 480), 1)
+    ifeq ($(shell expr $(CC_VERNUM) '>' 490), 1)
         CFLAGS_STD      = -std=gnu11 -flto -fno-fat-lto-objects
     else
         CFLAGS_STD        =
@@ -1067,7 +1067,7 @@ else
 endif
 
 ifndef CXXFLAGS_STD
-    ifeq ($(shell expr $(CC_VERNUM) '>' 480), 1)
+    ifeq ($(shell expr $(CC_VERNUM) '>' 490), 1)
         CXXFLAGS_STD      = -std=gnu++11 -fno-threadsafe-statics -flto
     else
         CXXFLAGS_STD      =
@@ -1080,11 +1080,11 @@ endif
 CFLAGS        += $(CFLAGS_STD)
 CXXFLAGS      += -fpermissive -fno-exceptions $(CXXFLAGS_STD)
 ASFLAGS       += -x assembler-with-cpp
-ifeq ($(shell expr $(CC_VERNUM) '>' 480), 1)
+ifeq ($(shell expr $(CC_VERNUM) '>' 490), 1)
     ASFLAGS += -flto
 endif
 LDFLAGS       += -$(MCU_FLAG_NAME)=$(MCU) -Wl,--gc-sections -O$(OPTIMIZATION_LEVEL)
-ifeq ($(shell expr $(CC_VERNUM) '>' 480), 1)
+ifeq ($(shell expr $(CC_VERNUM) '>' 490), 1)
     LDFLAGS += -flto -fuse-linker-plugin
 endif
 SIZEFLAGS     ?= --mcu=$(MCU) -C
@@ -1293,7 +1293,7 @@ $(OBJDIR)/%.s: %.ino $(COMMON_DEPS) | $(OBJDIR)
 
 $(OBJDIR)/%.s: %.cpp $(COMMON_DEPS) | $(OBJDIR)
 	@$(MKDIR) $(dir $@)
-	$(CXX) -x c++ -include $(ARDUINO_HEADER) -MMD -S -fverbose-asm $(CPPFLAGS) $(CXXFLAGS) $< -o $@
+	$(CXX) -x c++ -MMD -S -fverbose-asm $(CPPFLAGS) $(CXXFLAGS) $< -o $@
 
 # core files
 $(OBJDIR)/core/%.c.o: $(ARDUINO_CORE_PATH)/%.c $(COMMON_DEPS) | $(OBJDIR)
@@ -1324,7 +1324,7 @@ endif
 $(OBJDIR)/%.eep: $(OBJDIR)/%.elf $(COMMON_DEPS)
 	@$(MKDIR) $(dir $@)
 	-$(OBJCOPY) -j .eeprom --set-section-flags=.eeprom='alloc,load' \
-		--change-section-lma .eeprom=0 -O ihex $< $@
+		--no-change-warnings --change-section-lma .eeprom=0 -O ihex $< $@
 
 $(OBJDIR)/%.lss: $(OBJDIR)/%.elf $(COMMON_DEPS)
 	@$(MKDIR) $(dir $@)
@@ -1470,7 +1470,7 @@ pre-build:
 		$(call runscript_if_exists,$(PRE_BUILD_HOOK))
 
 $(TARGET_ELF): 	$(LOCAL_OBJS) $(CORE_LIB) $(OTHER_OBJS)
-		$(CC) $(LDFLAGS) -o $@ $(LOCAL_OBJS) $(CORE_LIB) $(OTHER_OBJS) -lc -lm $(LINKER_SCRIPTS)
+		$(CC) $(LDFLAGS) -o $@ $(LOCAL_OBJS) $(CORE_LIB) $(OTHER_OBJS) $(OTHER_LIBS) -lc -lm $(LINKER_SCRIPTS)
 
 $(CORE_LIB):	$(CORE_OBJS) $(LIB_OBJS) $(PLATFORM_LIB_OBJS) $(USER_LIB_OBJS)
 		$(AR) rcs $@ $(CORE_OBJS) $(LIB_OBJS) $(PLATFORM_LIB_OBJS) $(USER_LIB_OBJS)
@@ -1553,17 +1553,19 @@ show_boards:
 		@$(CAT) $(BOARDS_TXT) | grep -E '^[a-zA-Z0-9_\-]+.name' | sort -uf | sed 's/.name=/:/' | column -s: -t
 
 show_submenu:
-	@$(CAT) $(BOARDS_TXT) | grep -E '[a-zA-Z0-9_\-]+.menu.(cpu|chip).[a-zA-Z0-9_\-]+=' | sort -uf | sed 's/.menu.(cpu|chip)./:/' | sed 's/=/:/' | column -s: -t
+	@$(CAT) $(BOARDS_TXT) | grep -E '[a-zA-Z0-9_\-]+.menu.(cpu|chip).[a-zA-Z0-9_\-]+=' | sort -uf | sed 's/.menu.\(cpu\|chip\)./:/' | sed 's/=/:/' | column -s: -t
 
 monitor:
 ifeq ($(MONITOR_CMD), 'putty')
-	ifneq ($(strip $(MONITOR_PARMS)),)
-	$(MONITOR_CMD) -serial -sercfg $(MONITOR_BAUDRATE),$(MONITOR_PARMS) $(call get_monitor_port)
+	ifneq ($(strip $(MONITOR_PARAMS)),)
+	$(MONITOR_CMD) -serial -sercfg $(MONITOR_BAUDRATE),$(MONITOR_PARAMS) $(call get_monitor_port)
 	else
 	$(MONITOR_CMD) -serial -sercfg $(MONITOR_BAUDRATE) $(call get_monitor_port)
 	endif
 else ifeq ($(MONITOR_CMD), picocom)
 		$(MONITOR_CMD) -b $(MONITOR_BAUDRATE) $(MONITOR_PARAMS) $(call get_monitor_port)
+else ifeq ($(MONITOR_CMD), cu)
+		$(MONITOR_CMD) -l $(call get_monitor_port) -s $(MONITOR_BAUDRATE)
 else
 		$(MONITOR_CMD) $(call get_monitor_port) $(MONITOR_BAUDRATE)
 endif
